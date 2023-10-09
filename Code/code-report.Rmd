@@ -1,0 +1,826 @@
+---
+title: "![](logo_khtn.jpg){width=3in}"
+author: "21125052 - PHAM VO QUYNH NHU - DATA 9"
+date: "SUMMER 2023"
+output:
+  word_document: 
+    toc: true
+  html_document: default
+  pdf_document: default
+
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Activity 01
+## I. Introduction
+### 1. Setting environment for data
+
+```{r}
+data<-read.csv('smoke.csv', header = FALSE)
+header_names <- c("educ", "cigpric", "white", "age", "income", "cigs", "restaurn", "lincome", "agesq", "lcigpric")
+colnames(data) <- header_names
+attach(data)
+str(data)
+```
+### 2. Data size
+```{r}
+dim(data)
+sum(is.na(data))
+```
+The result shows that this data has 807 rows (observations) and 10 columns (variables). And the second row show that no missing values are present in the data set.
+
+### 3. Brief summary of the data
+```{r, echo=FALSE}
+summary(data)
+```
+The observations include the following factors:
+
+- educ: Number of years of education
+- cigpric: Price of cigarettes in the state (in cents per pack)
+- white: 1 if the individual is white, 0 otherwise
+- age: Age of the individual in years
+- income: Annual income in dollars
+- cigs: Number of cigarettes smoked per day
+- restaurn: 1 if state smoking restrictions
+- lincome: Log of income.
+- agesq: Age squared (age * age).
+- lcigpric: Log of cigarette price.
+
+$\rightarrow$ Via observing the provided data, it is evident that the column set comprises 8 quantitative variables and 2 qualitative variables. 
+
+## II. Descriptive Statistics
+### 0. Prepared functions
+```{r}
+mode <- function( x, na.rm = FALSE) {
+  if(na.rm){ x = x[!is.na(x)]  }
+  val <- unique(x)
+  return(val[which.max(tabulate(match(x, val)))])
+}
+
+outliers <- function(x) {   
+# 1st and 3rd quantiles   
+  q75 = quantile(x, 0.75)   
+  q25 = quantile(x, 0.25)   
+  IQR = q75-q25   
+# lower bound   
+  lower_bound = q25 - 1.5 * IQR   
+# upper bound   
+  upper_bound = q75 + 1.5 * IQR   
+# outliers   
+  outlier_ind <- which(x < lower_bound | x > upper_bound)   
+  if (length(outlier_ind) == 0) return (0)   
+  return(outlier_ind) 
+}
+```
+### 1. Number of whites
+```{r, fig.width= 10, echo=FALSE}
+par(mfrow=c(1,2))
+whiteTab <- table(white)
+whiteTab
+barplot(whiteTab)
+title(main = "Barplot")
+pie(whiteTab, labels = c("0", "1"), col = c("white", "lightblue"))
+title(main = "Pie Chart")
+```
+
+$\rightarrow$ The major of observers are white.
+
+### 2. Number of restaurant having smoking restrictions
+```{r, fig.width= 10, echo=FALSE}
+par(mfrow=c(1,2))
+restaurnTab <- table(restaurn)
+restaurnTab
+barplot(restaurnTab)
+title(main = "Barplot")
+pie(whiteTab, labels = c("0", "1"), col = c("white", "lightblue"))
+title(main = "Pie Chart")
+```
+
+$\rightarrow$ The majority of states have smoking restrictions in their restaurants.
+
+### 3. Number of years of education
+```{r, fig.width= 10, echo=FALSE}
+educTab<-table(educ)
+educTab
+barplot(educTab)
+cat("Mode of years of education: ", mode(educ) ,"\n")
+cat("Summary of years of education: \n")
+summary(educ)
+```
+
+$\rightarrow$ Based on the data, it appears that the majority of observers have completed 12 years of education.
+
+### 4. Number of cigarettes smoked per day
+```{r, fig.width= 10, echo=FALSE}
+cigTab<-table(cigs)
+cigTab
+par(mfrow=c(1,2))
+hist(cigs)
+boxplot(cigs)
+title(main="Boxplot of cigs")
+summary(cigs)
+```
+-	The histogram indicates that the number of cigarettes smoked per day is concentrated mainly in the range of 0 to 40 cigarettes.
+-	This box-plot shows that there are still exist outliers but not too much (3 outliers).
+
+### 5. Price of cigarettes in the state (in cents per pack)
+```{r, fig.width= 10, echo=FALSE}
+par(mfrow=c(1,2))
+hist(cigpric)
+boxplot(cigpric)
+title(main="Boxplot of cigpric")
+
+hist(lcigpric)
+boxplot(lcigpric)
+title(main="Boxplot of lcigpric")
+
+cat("Total outlier of cigpric: ", length( boxplot.stats(cigpric)$out ), " ", length( boxplot.stats(cigpric)$out) / length(cigpric), "\n")
+cat("Summary of cigpric: \n")
+summary(cigpric)
+```
+- The histogram indicates that price of cigarettes in states is concentrated mainly in the range of 55 cents to 65 cents. 
+- This box-plot shows that there are still exist outliers (39 outliers).
+
+### 6. Age
+```{r, fig.width= 10, echo=FALSE}
+par(mfrow=c(1,2))
+hist(age)
+hist(agesq)
+
+boxplot(age)
+title(main="Boxplot of age")
+boxplot(agesq)
+title(main="Boxplot of agesq")
+cat("Mode of age: ", mode(age), "\n")
+cat("Summary of age \n")
+summary(age)
+```
+The histogram indicates that the age of observers is concentrated mainly in the range of 20 years to 40 years. Moreover, it seems to be skewed right.
+
+### 7. Income
+```{r, fig.width= 10, echo=FALSE}
+par(mfrow=c(1,2))
+barplot(table(income))
+boxplot(income)
+title(main="Boxplot of income")
+
+hist(lincome)
+boxplot(lincome)
+title(main="Boxplot of lincome")
+cat("Mode of age: ", mode(income), "\n")
+cat("Summary of income: \n")
+summary(income)
+```
+The bar chart indicates that income of observers is concentrated mainly in the range of $6500 to $20000 and the histogram of lincome seems to be skewed left.
+
+## III. Inference Statistics
+### 1. Testing for price of cigarettes in states
+
+#### 1.1 General
+
+Utilizing the cigpric summary provided, where the average cigpric within the dataset stands at \$60.30, our objective is to ascertain whether the actual mean corresponds to \$60.
+
+Hypothesis:
+
+$H_0: \mu_0=60$
+
+$H_1: \mu_0 \neq 60$
+```{r, echo=FALSE}
+t.test(x=cigpric, alternative = "two.sided", mu=60)
+```
+The obtained p-value is 0.07208, which is greater than the predetermined significance level of α=0.05 for a confidence level of 95%. Consequently, we do not have sufficient evidence to reject the null hypothesis. Therefore, we conclude that the mean value of the price of cigarettes is $60.
+
+#### 1.2 Testing price between two categories
+```{r, fig.width=10, echo=FALSE}
+boxplot(cigpric~restaurn, ylab="cigpric(cents)")
+```
+
+From the view of the data context, we have the reason to assume that the price of cigarettes at state having smoking restriction in restaurants is larger than the price of cigarettes at state not having smoking restriction in restaurants.
+
+Hypothesis:
+
+$\mu_1$: means of prices of cigarettes at state having smoking restriction in restaurants
+
+$\mu_2$: means of prices of cigarettes at state not having smoking restriction in restaurants
+
+$H_0: \mu_{10}=\mu_{20}$
+
+$H_1: \mu_{10}<\mu_{20}$
+
+```{r, echo=FALSE}
+t.test(cigpric[restaurn==1], cigpric[restaurn==0], alternative = "less")
+```
+The obtained p-value is 1, which is undoubtly accept the null hypothesis. Therefore, the mean price of cigarettes at state having smoking restriction in restaurants is larger than the price of cigarettes at state not having smoking restriction in restaurants.
+
+### 2. Testing for years of education
+
+Utilizing the educ summary provided, where the average educ within the dataset stands at 12.47 years, our objective is to ascertain whether the actual mean corresponds to 13 years.
+
+Hypothesis:
+
+$H_0: \mu_0=13$
+
+$H_1: \mu_0 \neq 13$
+```{r, echo=FALSE}
+t.test(x=educ, alternative = "two.sided", mu=13)
+
+```
+The obtained p-value is 0, which is smaller than the predetermined significance level of α=0.05 for a confidence level of 95%. Consequently, we reject the null hypothesis. Therefore, we conclude that the mean value of the years of education is not equal to 13 years.
+
+### 3. Testing for number of whites
+```{r, echo=FALSE}
+length(white[white==0])/length(white)
+```
+The result show that 12,14% data are not of white ethnicity. So for now we will test whether this proportion is larger than 10% or not.
+
+Hypothesis:
+
+$H_0: \rho_0=0.10$
+
+$H_1: \rho_0 > 0.10$
+
+```{r, echo=FALSE}
+prop.test(table(white),p=0.10, alternative = "greater")
+```
+The obtained p-value is  p-value = 0.02435 which is smaller than the predetermined significance level of α=0.05 for a confidence level of 95%. Consequently, we reject the null hypothesis. The proportion of not of white ethnicity is larger than 10%
+
+### 4. Testing for restaurants having smoking restrictions
+#### 4.1 General
+```{r, echo=FALSE}
+length(restaurn[restaurn==0])/length(restaurn)
+```
+The result show that 75,34% data are restaurants not having smoking restrictions. So for now we will test whether this proportion is larger than 75% or not.
+
+Hypothesis:
+
+$H_0: \rho_0=0.75$
+
+$H_1: \rho_0 < 0.75$
+
+```{r, echo=FALSE}
+prop.test(table(restaurn),p=0.75, alternative = "less")
+```
+The obtained p-value is  p-value = 0.5726 which is greater than the predetermined significance level of α=0.05 for a confidence level of 95%. Consequently, we accept the null hypothesis. The proportion of restaurants not having smoking restrictions is larger than 75%.
+
+#### 4.2 Testing relationship between smokers and restaurant having smoking restrictions**
+```{r, echo=FALSE}
+#smoker and non-smoker
+smoker=1:length(cigs)
+for (i in 1:length(cigs))
+{if (cigs[i]<1)
+{smoker[i]=0}
+  else 
+  {smoker[i]=1}
+}
+
+table(restaurn,smoker)
+cat("Smoking restrictions and non-smoker: ", nrow(data[cigs == 0 & restaurn == 1,])/nrow(data), "\n")
+cat("Smoking restrictions and smoker: ", nrow(data[cigs > 0 & restaurn == 1,])/nrow(data), "\n")
+
+
+```
+
+Hypothesis:
+
+$\rho_1$: proportion of smoking restrictions in states' restaurant and non-smoker
+
+$\rho_2$: proportion of smoking restrictions in states' restaurant and smoker
+
+$H_0: \rho_{10}=\rho_{20}$
+
+$H_1: \rho_{10}>\rho_{20}$
+
+```{r, echo=FALSE}
+prop.test( x = c( nrow(data[cigs == 0 & restaurn == 1,]), 
+                  nrow(data[cigs > 0 & restaurn == 1,])), n = c(length(cigs), length((restaurn))), alternative = "greater" )
+
+```
+The obtained p-value is  p-value = 4.361e-09 which is smaller than the predetermined significance level of α=0.05 for a confidence level of 95%. Consequently, we reject the null hypothesis. It means that with states having smoking restrictions in restaurants, proportion of non-smokers is higher than smokers.
+
+## III. Linear regression model
+According to the data, the number of cigarettes smoked per day is the attribute that is most commonly estimated by others. As a result, we are currently working on developing a model that focuses on the cigs attribute.
+
+### 1. Pre-process
+Freshing data:
+
+In the above section, it has show that there is no missing values in the data so that we can skip this stage.
+
+**Removing outliers:**
+
+Calculate the total outliers row :
+```{r, echo=FALSE}
+result_vector <- unlist(apply(data[,c(1,2,3,4,6,7,8,9,10)],2,outliers))
+length(unique(result_vector[result_vector != 0]))
+
+length(unique(result_vector[result_vector != 0])) / nrow(data)
+```
+Observation: Since the number of outliers row is too much 332/807 observations (41.14%) so that we should not remove all of them.
+
+**Add categories for age and cigs:**
+```{r}
+#smoker =1 if cigs>0
+smoker=1:length(cigs)
+for (i in 1:length(cigs))
+{if (cigs[i]<1)
+{smoker[i]=0}
+  else 
+  {smoker[i]=1}
+}
+
+#ageGroup=1 if age>30
+ageGroup=1:length(age)
+for (i in 1:length(age))
+{if (age[i]<=30)
+{ageGroup[i]=0}
+  else 
+  {ageGroup[i]=1}
+}
+
+data$young<-ageGroup
+data$smoker<-smoker
+```
+### 2. Checking correlation between variables
+```{r, fig.width= 10, fig.height= 5, echo=FALSE}
+pairs(cigs ~ ., data = data )
+r <- cor(dplyr::select_if(data, is.numeric))
+ggcorrplot::ggcorrplot(r,
+           hc.order = TRUE,
+           lab = TRUE)
+car::vif(lm(cigs~., data = data))
+```
+Conclusion: The Variance Inflation Factor (VIF) is a measure of the strength of the correlation between independent variables in a multiple regression model. A VIF value of less than 5 indicates that there is no strong correlation between the variables. In this case, the VIF values for cigpric, lcigpric, income, lincome age and agesq are strongly correlated to each other.
+
+### 3. Building models
+Starting the full model with all the variables except cigpric, age, income:
+```{r, echo=FALSE}
+model<-lm(data$cigs ~ (.-age-cigpric-income), data=data)
+summary(model)
+car::vif(model)
+```
+The p-value for the cigpric and white variable is large enough to warrant further investigation into whether it can be eliminated from the analysis
+ 
+```{r, echo=FALSE}
+model_exceptCigpricAndWhite<-lm(data$cigs ~(.-age-lcigpric-income-white-cigpric), data=data)
+summary(model_exceptCigpricAndWhite)
+anova(model, model_exceptCigpricAndWhite)
+```
+The summary of the new reduced model indicates that subtracting additional variables only results in a 0.08% increase in the adjusted R-squared value. This suggests that the cost of excepting the extra variables may not be worth the small improvement in the model’s explanatory power. Additionally, the p-value in the anova table (0.9584) also support that comment.
+But seeking through the summary, the restaurn and agesq have proportions can be eliminate so further testing is needed.
+
+```{r, echo=FALSE}
+model_exceptCigpricAndWhiteAndResAndAge<-lm(data$cigs ~(.-age-agesq-cigpric-income-white-lcigpric-restaurn), data=data)
+summary(model_exceptCigpricAndWhiteAndResAndAge)
+anova(model, model_exceptCigpricAndWhiteAndResAndAge)
+```
+The summary of the new reduced model indicates that including additional variables only results in a 0.07% increase in the adjusted R-squared value. This suggests that the cost of including the extra variables may not be worth the small improvement in the model’s explanatory power. Additionally, the p-value in the anova table (0.6532) also support that comment.
+
+Beside the original ways, there is another way to choose the good model based on the AIC :
+
+```{r, echo=FALSE}
+model_best<-step(lm(data$cigs ~(.-age-cigpric-income), data=data),direction = "both",k = 2)
+summary(model_best)
+```
+$\rightarrow$ The result model is the same as the model with except age, agesq, cigpric, lcigpric, income, white and restaurn found before.
+
+### 4. Checking the model
+**Independent check using Durbin-Watson Test:**
+
+$H_0$ : linear regression residuals of time series data are uncorrelated
+
+$H_1$ : autocorrelation exists.
+
+```{r, echo=FALSE}
+lag.plot(model_best$residuals)
+car::durbinWatsonTest(model_best)
+```
+
+Conclusion: The result show that the p-value is 0.954, which means autocorrelation does not exist.
+
+**Stability check using Breusch-Pagan Test:**
+
+$H_0$: Homoscedasticity is present (the residuals are distributed with equal variance)
+
+$H_1$: Heteroscedasticity is present (the residuals are not distributed with equal variance)
+```{r, echo=FALSE}
+lmtest::bptest(model_best)
+```
+Conclusion: The result show that it reject null hypothesis at any significant level. $\rightarrow$ The residuals are not distributed with equal variance.
+
+**Normality check using Shapiro-Wilk normality test:**
+$H_0$ : the sample has been generated from a normal distribution
+
+$H_1$ : the sample has not been generated from a normal distribution
+```{r, echo=FALSE}
+shapiro.test(model_best$residuals)
+```
+Conclusion: The p-value is too small to accept null hypothesis at any significant level.
+
+### 5. Analysis and interpretation of the model results
+```{r, echo=FALSE}
+summary(model_best)
+car::vif(model_best)
+```
+All the coefficients of the function model: $\hat{\beta_0}$=-10.58384, $\hat{\beta_1}$=0.19863, $\hat{\beta_2}$= 0.66666, $\hat{\beta_3}$=2.39864, $\hat{\beta_4}$=22.84987
+
+Explain the meaning of coefficients
+
+- $\hat{\beta_{0}}$ = -10.58384: When years of education, log of income, young and smoker are 0, and the estimate value of number of cigarettes smoked per day is -10.58384
+- $\hat{\beta_{1}}$ = 0.19863: When number years of education increases by 1 and other variables remain the same, the estimate number of cigarettes smoked per day increases by 0.19863.
+- $\hat{\beta_{2}}$ = 0.66666: When log of income increases by 1 and other variables remain the same, the estimate number of cigarettes smoked per day increases by 0.66666.
+- $\hat{\beta_{3}}$ = 2.39864:  When the young=1 and other variables remain the same, the estimate number of cigarettes smoked per day will increase by 2.39864.
+- $\hat{\beta_{4}}$ = 22.84987:  When the smoker=1 and other variables remain the same, the estimate number of cigarettes smoked per day will increase by 22.84987
+
+From the result, the fitted least squares regression model for number of cigarettes smoked per day is:
+
+$$\hat{Y} = -10.58384 + 0.19863\times educ + 0.66666\times lincome + 2.39864\times young + 22.84987\times smoker$$
+
+Meaning of adjusted R-squared : The adjusted R-squared value is 0.6547. Therefore, the independent variables explain 65.47% of the variance in the dependent variable. The remaining 34.53% is explained by external variables and random error.
+
+**Model Utility Test**
+```{r, echo=FALSE}
+anova(model_best)
+```
+For all the variables, with the confidence level 90% ($\alpha$ = 0.1), p-value < 0.1
+
+$H_{0}: \beta_{1} = \beta_{2} = \beta_{3} = \beta_{4} = 0$
+
+$H_{1}:  at\: least\: one\: \beta_{i} \neq 0 (i = 1,2,3,4)$
+
+Since p-value < $\alpha$, the null hypothesis is rejected. We can conclude that the variables that we are testing is useful in the regression model.
+
+Therefore, all the variables are useful in the regression model.
+
+```{r, fig.width= 10, echo=FALSE}
+par(mfrow=c(1,2))
+plot(model_best)
+```
+
+```{r, fig.width= 10, fig.height= 5, echo=FALSE}
+plot(predict(model_best, newdata = data), cigs, xlab = "Predicted Values", ylab = "Observed Values")
+abline(a = 0, b = 1, col = "blue", lwd = 2)
+```
+Conclusion:
+The number of cigarettes smoked per day increases with years of education, income, and whether a person is a smoker or under 31 years old. Price of cigarettes, living in states having smoking restrictions in restaurant, being whites have small impacts on cigarettes' value.
+
+# Activity 02
+## I. Introduction
+The data consists of 400 observations about graduate admission chances, each record has 9 description columns which are showed below :
+
+- Serial.No: Identification number
+- GRE.Score: Graduate Record Examination)
+- TOEFL.Score: Test of English as a Foreign Language
+- University.Rating: University ranking
+- SOP: Statement of Purpose
+- LOR: Letter of Recommendation
+- CGPA: Cumulative Grade Point Average
+- Research: 1 if the applicant has research experience, 0 otherwise
+- Chance.of.Admit: Likelihood of admission
+
+Conclusion: This dataset offers a robust foundation for investigating the intricate interplay of these attributes in shaping the outcomes of graduate admissions. By exploring the relationships embedded within these columns, researchers and analysts can unveil valuable insights into the factors contributing to successful admissions.
+
+### 1. Setting environment for data
+```{r}
+dataGA<-read.csv('US_graduate_schools_admission_parameters_dataset.csv', header = TRUE)
+str(dataGA)
+```
+### 2. Data size
+```{r}
+dim(dataGA)
+sum(is.na(dataGA))
+```
+The result shows that this data has 400 rows (observations) and 9 columns (variables).And the second row show that no missing values are present in the data set.
+### 3. Brief summary of the data
+```{r, echo=FALSE}
+summary(dataGA)
+```
+- GRE.Score and TOEFL.Score: The mean and median for both scores are close, indicating a balanced distribution of academic readiness. Notably, the relatively high maximum values (340 for GRE, 120 for TOEFL) showcase exceptional performance.
+
+- University.Rating, SOP, and LOR: The median values align closely with the means, suggesting symmetrical distributions for university ratings, SOP, and LOR. The quartiles reveal a consistent evaluation trend across institutions and recommenders.
+
+- CGPA: The slightly higher mean compared to the median in CGPA indicates a positively skewed distribution. The broader spread towards higher values underscores a notable concentration of strong academic performances.
+
+- Research: The binary distribution of research experience is evident, with approximately half of applicants having research backgrounds. This highlights the substantial representation of candidates with practical engagement.
+
+- Chance.of.Admit: The symmetrical distribution of admission probabilities, with mean and median closely aligned, implies a competitive range. Quartiles further emphasize the diverse probabilities among applicants.
+
+## II. Descriptive Statistics
+### 1. Research experience
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+REtable<-table(dataGA$Research)
+REtable
+barplot(REtable)
+title(main = "Barplot")
+
+pie(REtable,  labels = c("0", "1"), col = c("white", "lightblue"))
+title(main = "Pie Chart")
+```
+
+$\rightarrow$ Over half of observers have experience in research.
+
+### 2. Graduate Record Examination score
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$GRE.Score)
+hist(dataGA$GRE.Score,freq = FALSE, main="Historgram of GRE.score", xlab="GRE.score")
+lines(density(dataGA$GRE.Score), col = "red")
+boxplot(dataGA$GRE.Score)
+title(main="Boxplot of GRE.score")
+
+```
+
+$\rightarrow$ The majority of applicants exhibit GRE scores within the range of 310 to 320, indicating a concentration around this interval. The absence of outliers, as depicted by the boxplot, suggests a consistent distribution of scores without extreme deviations.
+
+### 3. Test of English as a Foreign Language
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$TOEFL.Score)
+hist(dataGA$TOEFL.Score,freq = FALSE, main="Historgram of TOEFL.Score", xlab="TOEFL.Score")
+lines(density(dataGA$TOEFL.Score), col = "red")
+boxplot(dataGA$TOEFL.Score)
+title(main="Boxplot of TOEFL.Score")
+```
+
+$\rightarrow$ Most applicants have TOEFL scores between 105 and 110, and the boxplot indicates a consistent distribution without outliers.
+### 4. Cumulative Grade Point Average
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$GPA)
+hist(dataGA$CGPA,freq = FALSE, main="Historgram of CGPA", xlab="CGPA")
+lines(density(dataGA$CGPA), col = "red")
+boxplot(dataGA$CGPA)
+title(main="Boxplot of CGPA")
+
+par(mfrow=c(2,2))
+barplot(table(dataGA$Research), xlab="Research")
+boxplot(dataGA$GRE.Score~dataGA$Research, xlab="Research", ylab="GRE.Score")
+boxplot(dataGA$TOEFL.Score~dataGA$Research, xlab="Research", ylab="TOEFL.Score")
+boxplot(dataGA$CGPA~dataGA$Research, xlab="Research", ylab="CGPA")
+
+```
+
+- CGPA for most applicants falls between 8.25 and 9.0, with one outlier.
+- Boxplots indicate that candidates with research experience tend to achieve higher GRE, TOEFL, and CGPA scores compared to those without research experience.
+
+### 5. University Ranking
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$University.Rating)
+rank<-table(dataGA$University.Rating)
+barplot(rank, main="Bar chart of University Ranking")
+pie(rank,main="Pie chart of University Ranking")
+```
+
+```{r, fig.width=10, fig.height=5, echo=FALSE}
+par(mfrow=c(1,1))
+table(dataGA$Research,dataGA$University.Rating)
+
+barplot(table(dataGA$Research,dataGA$University.Rating), beside=TRUE,legend = c("Non-Researcher", "Researcher"),main="Relationship between University Ranking and Reseacher")
+```
+
+The majority of universities are ranked between 2 and 4. Interestingly, within the range of rankings 3 to 5, a higher number of applicants possess research experience compared to those without. Conversely, for universities ranked 1 to 2, there is a lower number of applicants with research experience in comparison to those without.
+
+### 6. Statement of Purpose
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$SOP)
+hist(dataGA$SOP, freq=FALSE, main="Histogram of SOP score", xlab="SOP")
+lines(density(dataGA$SOP), col = "red")
+boxplot(dataGA$SOP, main="Boxplot of SOP score")
+```
+
+$\rightarrow$ The majority of applicants exhibit Statement of Purpose scores ranging from 2 to 4.5, without any outliers.
+
+### 7. Letter of Recommendation
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$LOR)
+hist(dataGA$LOR, freq=FALSE, main="Histogram of LOR score", xlab="LOR")
+lines(density(dataGA$LOR), col = "red")
+boxplot(dataGA$LOR, main="Boxplot of LOR score")
+```
+
+$\rightarrow$ Most applicants' Letter of Recommendation scores fall within the range of 2.5 to 4.
+
+### 8. Chance of admission
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+summary(dataGA$Chance.of.Admit)
+hist(dataGA$Chance.of.Admit, freq=FALSE, main="Histogram of Chance.of.Admit", xlab="Chance.of.Admit")
+lines(density(dataGA$Chance.of.Admit), col = "red")
+boxplot(dataGA$Chance.of.Admit~dataGA$Research, xlab="Research", ylab="Chance.of.Admit")
+
+```
+
+$\rightarrow$ Notably, a substantial portion of admissions probabilities cluster between 0.6 to 0.8. Intriguingly, applicants with research experience consistently demonstrate a higher proportion of favorable admission chances compared to those without such experience. This observation underscores the potential positive impact of research engagement on admission outcomes.
+
+## III. Linear regression model
+### 1. Pre-process
+**Checking outliers**
+```{r}
+result_vector <- unlist(apply(dataGA[,c(1,2,3,4,5,6,7,8,9)],2,outliers))
+length(unique(result_vector[result_vector != 0]))
+length(unique(result_vector[result_vector != 0])) / nrow(dataGA)
+```
+
+Observation: Since the number of outliers row is not too much, 4 observations ( 1% ) so that they could be remove.
+
+```{r}
+dataGA_filtered <- dataGA[-unique(result_vector[result_vector != 0]),]
+dim(dataGA_filtered)
+
+```
+
+**Checking multicollinearity:**
+```{r, echo=FALSE, fig.width=10, fig.height=5}
+pairs(dataGA_filtered$Chance.of.Admit ~ ., data = dataGA_filtered )
+r <- cor(dplyr::select_if(dataGA_filtered, is.numeric))
+ggcorrplot::ggcorrplot(r, hc.order = TRUE, lab = TRUE)
+car::vif( lm(dataGA_filtered$Chance.of.Admit ~ ., data = dataGA_filtered ) )
+
+```
+Conclusion: The Variance Inflation Factor (VIF) is a measure of the strength of the correlation between independent variables in a multiple regression model. A VIF value of less than 10 indicates that there is no strong correlation between the variables. In this case, the VIF values for all variables are less than 10, which means that there are no variables that are strongly correlated with each other.
+
+**Data splitting for training and validation process**
+```{r, echo=FALSE}
+set.seed(190)  # Set a random seed for reproducibility
+
+# Calculate the number of observations for training and validation
+num_train <- round(0.8 * nrow(dataGA_filtered))  # Use 80% for training
+num_val <- nrow(dataGA_filtered) - num_train
+
+# Generate random indices for training and validation
+train_indices <- sample(nrow(dataGA_filtered), num_train, replace = FALSE)
+val_indices <- setdiff(1:nrow(dataGA_filtered), train_indices)
+
+# Create training and validation datasets
+training_data <- dataGA_filtered[train_indices, ]
+validation_data <- dataGA_filtered[val_indices, ]
+
+# Print the dimensions of training_data
+cat("Dimensions of training_data:", dim(training_data), "\n")
+
+# Print the dimensions of validation_data
+cat("Dimensions of validation_data:", dim(validation_data), "\n")
+
+```
+The training dataset will contain a random selection of 80% of the original data, and the validation dataset will contain the remaining 20% of the data.
+```{r, echo=FALSE}
+car::vif( lm( Chance.of.Admit ~ (.-Serial.No.) , data = training_data ) )
+car::vif( lm( Chance.of.Admit ~ (.-Serial.No.) , data = validation_data ) )
+
+```
+### 2. Building model
+At first, we examine the linear model with chance of admission be the dependent variable.
+```{r, echo=FALSE}
+model<-lm( Chance.of.Admit ~ (.-Serial.No.) , data = training_data )
+summary(model)
+```
+
+Choosing the best model via the AIC criterion :
+```{r, echo=FALSE}
+model_best<-step(model, direction='both', k=2)
+summary(model_best)
+```
+Observation: The p-value of all variables are significant small, that lead to that conclusion that non of them could be eliminated from this model.
+
+### 3. Checking the model
+**Independent check using Durbin-Watson Test:**
+
+$H_0$ : linear regression residuals of time series data are uncorrelated
+
+$H_1$ : autocorrelation exists.
+
+```{r, echo=FALSE}
+lag.plot(model_best$residuals)
+car::durbinWatsonTest(model_best)
+```
+
+Conclusion: The p-value associated with the test is 0.034 $\rightarrow$ Reject null hypothesis, linear regression residuals of time series data are not uncorrelated 
+
+**Stability check using Breusch-Pagan Test:**
+
+$H_0$: Homoscedasticity is present (the residuals are distributed with equal variance)
+
+$H_1$: Heteroscedasticity is present (the residuals are not distributed with equal variance)
+```{r, echo=FALSE}
+lmtest::bptest(model_best)
+```
+Conclusion: The p-value of the result is 0.003107, hence suggests that there is evidence to reject the null hypothesis, and the residuals are not distributed with equal variance.
+
+**Normality check using Shapiro-Wilk normality test:**
+
+$H_0$ : the sample has been generated from a normal distribution
+
+$H_1$ : the sample has not been generated from a normal distribution
+```{r, echo=FALSE}
+shapiro.test(model_best$residuals)
+```
+Conclusion: The p-value is too small to accept null hypothesis at any significant level. Therefore, the data does not follow a normal distribution, and those normal assumptions we made above are likely not to be valid.
+
+### 4. Transformation model
+By the reason that our model did not pass through the normality checking, we are now transformation the model using Box-Cox.
+
+Log-likelihood function of $\lambda$:
+```{r, echo=FALSE, fig.width=10}
+par(mfrow=c(1,2))
+MASS::boxcox(model_best, plotit = TRUE)
+MASS::boxcox(model_best, plotit = TRUE, lambda = seq( 1.5,2.5, by = 0.01 ) )
+
+```
+
+Observation: The confidence interval for the λ value that maximizes the log-likelihood is close the range [1.5,2.5]. Here we see that λ = 2.2 is both in the confidence interval, and is extremely close to the maximum. This suggests a transformation of the form:
+
+$$\frac{y^{2.2}-1}{2.2}$$
+Therefore, we create a new model after transformation:
+```{r}
+model_final<-lm((Chance.of.Admit^2.2-1)/2.2 ~ GRE.Score + TOEFL.Score + LOR + 
+    CGPA + Research, data = training_data)
+summary(model_final)
+```
+**Checking for the new model:**
+```{r, echo=FALSE}
+lag.plot(model_final$residuals) 
+car::durbinWatsonTest(model_final)
+lmtest::bgtest(model_final)
+shapiro.test(model_final$residuals)
+```
+Observation: After applying the Box-Cox transformation to the data, the p-value for both the Breusch-Pagan test and the Durbin-Watson test has increased. This suggests that the transformation has helped stabilize the residual variance and has resulted in a diminished amount of compelling evidence against the null hypothesis of no autocorrelation.
+
+Conclusion: Could use the model after transformation.
+
+### 5. Double checking the model
+**Using model after transformation:**
+```{r, echo=FALSE}
+predict_Chance.of.Admit<-log(((predict(model_final, newdata = validation_data))*2.2+1),base = 2.2)
+head(predict_Chance.of.Admit)
+plot(predict_Chance.of.Admit, validation_data$Chance.of.Admit,
+     xlab = "Predicted Values",
+     ylab = "Observed Values") 
+
+#RMSE 
+print("Root mean square error:")
+sqrt(mean((predict_Chance.of.Admit - validation_data$Chance.of.Admit)^2))
+
+```
+
+Observation: Despite the improved performance of the model after transformation compared to its pre-transformation state, it is noteworthy that the predicted values for "Chance of Admission" are consistently negative, whereas in reality, this variable is positive. This discrepancy indicates that while the transformed model may exhibit better statistical characteristics, it fails to provide meaningful and accurate predictions in the context of the problem. As a result, it is advisable to consider utilizing the model before the transformation, as it produces predictions that align with the logical expectations for the "Chance of Admission" variable.
+
+**Using model before transformation**
+```{r, echo=FALSE, fig.width=10}
+predict_Chance.of.Admit <- predict(model_best, newdata = validation_data)
+head(predict_Chance.of.Admit)
+#RMSE 
+print("Root mean square error:")
+sqrt(mean((predict_Chance.of.Admit - validation_data$Chance.of.Admit)^2))
+
+par(mfrow=c(1,2))
+plot(model_best)
+par(mfrow=c(1,1))
+
+plot(predict(model_best, newdata = validation_data),                              
+     validation_data$Chance.of.Admit,
+     xlab = "Predicted Values",
+     ylab = "Observed Values")
+abline(a = 0,                                       
+       b = 1,
+       col = "red",
+       lwd = 2)
+
+
+
+```
+
+### 6. Analysis and interpretation of the model results
+```{r, echo=FALSE}
+summary(model_best)
+car::vif(model_best)
+```
+$$Chance.of.Admit = -1.2415 + 0.0016818 \times GRE.Score + 0.0030571 \times TOEFL.Score + 0.0215602 \times LOR + 0.1187133 \times CGPA + 0.0244236 \times Research$$
+
+The linear regression model estimates the "Chance of Admission" for a student based on the following predictor variables:
+
+- The intercept term of -1.2415 represents the estimated "Chance of Admission" when all predictor variables are zero.
+- GRE Score: For every one-point increase in GRE score, the predicted chance of admission increases by approximately 0.0017.
+- TOEFL Score: For every one-point increase in TOEFL score, the predicted chance of admission increases by approximately 0.0031.
+- LOR (Letter of Recommendation): For every one-unit increase in the LOR rating, the predicted chance of admission increases by approximately 0.0216.
+- CGPA (Cumulative Grade Point Average): For every one-unit increase in CGPA, the predicted chance of admission increases by approximately 0.1187.
+- Research: If a student has research experience (Research = 1), the predicted chance of admission increases by approximately 0.0244.
+
+The model's performance is indicated by the adjusted R-squared value of approximately 0.8171, which suggests that the predictor variables in the model explain about 81.71% of the variance in the "Chance of Admission." 
+
+Conclusion: The model indicates that variables such as GRE score, TOEFL score, letter of recommendation (LOR), CGPA, and research experience play crucial roles in influencing the chance of admission. When these factors rise, the predicted chance of admission rises as well. However, it appears that statement of purpose (SOP) and university ranking have limited impact on the chance of admission based on the model's analysis.  
+
+# Appendix 
+## 1. Dataset
+- Dataset for activity 02: US graduate school's admission parameters.
+- Link: https://www.kaggle.com/datasets/tanmoyie/us-graduate-schools-admission-parameters
+
+## 2. Source code
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
